@@ -3,13 +3,13 @@
 Owner: Emily Soh  
 Contributing Developer: Taurean Newsome  
 
-## Description
+### Description
 
 A lightweight REST microservice built in Node.js that manages scheduled circadian rhythm timers for external applications. The service exposes JSON-based API endpoints that allow client systems to create timers, retrieve active timers, and reset existing timers. Timers are stored in a NoSQL database where each timer is assigned a unique `timerId`, duration interval, and timestamp for scheduling and tracking purposes. The microservice is designed for easy integration with sleep-tracking applications, dashboards, reminder systems, and distributed applications without requiring additional messaging infrastructure.
 
 ---
 
-# User Stories / Functional Requirements / Quality Attributes & Non-Functional Requirements
+## User Stories / Functional Requirements / Quality Attributes & Non-Functional Requirements
 
 ## User Story #1: Set Timer
 
