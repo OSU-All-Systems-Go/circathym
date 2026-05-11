@@ -9,11 +9,11 @@ A lightweight REST microservice built in Node.js that manages scheduled circadia
 
 ---
 
-## User Stories | Functional Requirements | Non-Functional Requirements| Quality Attributes 
+## Timer Stories | Functional Requirements | Non-Functional Requirements| Quality Attributes 
 
-## User Story 1: Set Timer
+## Timer Story 1: Set Timer
 
-As a user, I want to set a timer for a scheduled interval so that my application can track when that interval should be reached.
+As a timer, I want to set a timer for a scheduled interval so that my application can track when that interval should be reached.
 
 ### Functional Requirement
 
@@ -25,9 +25,9 @@ Reliability: When multiple valid timer requests are sent to the `/setTimer` endp
 
 ---
 
-## User Story 2: Get Timer
+## Timer Story 2: Get Timer
 
-As a user, I want to retrieve an active timer so that my application can display the current scheduled interval.
+As a timer, I want to retrieve an active timer so that my application can display the current scheduled interval.
 
 ### Functional Requirement
 
@@ -39,9 +39,9 @@ Performance: When a valid GET request is sent to the `/getTimer` endpoint, the m
 
 ---
 
-## User Story 3: Reset Timer
+## Timer Story 3: Reset Timer
 
-As a user, I want to reset an active timer so that outdated or incorrect scheduled intervals are removed.
+As a timer, I want to reset an active timer so that outdated or incorrect scheduled intervals are removed.
 
 ### Functional Requirement
 
