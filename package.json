@@ -1,21 +1,64 @@
 {
-  "name": "alarm_service",
-  "version": "1.0.0",
-  "description": "",
-  "license": "ISC",
-  "author": "",
-  "type": "module",
-  "main": "index.js",
+  "name": "@crt-services/source",
+  "version": "0.0.0",
+  "license": "MIT",
   "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "timer:docs": "nx run timer:docs",
+    "test": "nx run timer-e2e:e2e",
+    "start": "nx run timer:serve",
+    "build": "nx run timer:build",
+    "docker:prd": "nx run timer:docker-build-prd",
+    "docker:build": "nx run timer:docker-build",
+    "prepare": "husky",
+    "ci:cdk:deploy": "nx run-many --target=cdk:deploy"
   },
+  "private": true,
   "dependencies": {
-    "fastify": "^5.8.5"
+    "axios": "^1.6.0"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "eslint": "^10.3.0",
-    "globals": "^17.6.0"
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
+    "@eslint/js": "^9.8.0",
+    "@nx/docker": "22.7.1",
+    "@nx/esbuild": "22.7.1",
+    "@nx/eslint": "22.7.1",
+    "@nx/eslint-plugin": "22.7.1",
+    "@nx/jest": "22.7.1",
+    "@nx/js": "22.7.1",
+    "@nx/node": "22.7.1",
+    "@nx/workspace": "22.7.1",
+    "@swc-node/register": "~1.11.1",
+    "@swc/core": "~1.15.5",
+    "@swc/helpers": "~0.5.18",
+    "@swc/jest": "~0.2.38",
+    "@types/jest": "^30.0.0",
+    "@types/node": "20.19.9",
+    "esbuild": "^0.27.0",
+    "esbuild-plugin-copy": "2.1.1",
+    "eslint": "^9.8.0",
+    "eslint-config-prettier": "^10.0.0",
+    "husky": "^9.1.7",
+    "jest": "^30.0.2",
+    "jest-environment-node": "^30.0.2",
+    "jest-util": "^30.0.2",
+    "lint-staged": "^16.4.0",
+    "nx": "22.7.1",
+    "prettier": "~3.6.2",
+    "ts-jest": "^29.4.0",
+    "ts-node": "10.9.1",
+    "tslib": "^2.3.0",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "^8.40.0"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "lint-staged": {
+    "packages/**/src/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "**/*.{ts,js,md,json}": "prettier --write"
   }
 }
