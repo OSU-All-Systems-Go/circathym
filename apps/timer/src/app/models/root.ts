@@ -1,133 +1,141 @@
-import { randomBytes, pbkdf2 } from 'node:crypto';
-import { promisify } from 'util';
-import jwt from 'jsonwebtoken';
-import { omit } from '../utils';
-
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
+  DeleteCommand,
 } from '@aws-sdk/lib-dynamodb';
+import { randomUUID } from 'crypto';
+import process from 'process';
 
-let client;
+// DB setup
+let client: DynamoDBClient;
+
 if (process.env.LOCAL === 'true') {
   client = new DynamoDBClient({
     region: 'local',
     endpoint: 'http://127.0.0.1:8000',
     credentials: {
-      accessKeyId: 'fakeMbfgo7yKeyId',
+      accessKeyId: 'fakeAccessKeyId',
       secretAccessKey: 'fakeSecretAccessKey',
     },
   });
 } else {
   client = new DynamoDBClient({});
 }
+
 const docClient = DynamoDBDocumentClient.from(client);
 
-export const signUpModel = async (req: any, res: any) => {
-  try {
-    const { timername, password, email, app = 'waa' } = req.body;
-    const salt = randomBytes(16);
-    const promisePbkdf2 = promisify(pbkdf2);
-    const derivedKey = await promisePbkdf2(
-      password,
-      salt,
-      310000,
-      32,
-      'sha256',
-    );
-    const table = process.env.USERS_TABLE_NAME || 'timers';
-    const query = new PutCommand({
-      TableName: table,
+type Timer = {
+  timerId: string;
+  appName: string;
+  duration: number;
+  callbackUrl: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+// Table name
+const TABLE_NAME = process.env.TABLE_NAME || 'timers';
+
+// Set timer
+export const setTimeModel = async (req: any, reply: any) => {
+  const { appName, duration, callbackUrl } = req.body;
+
+  if (!appName || !duration || !callbackUrl) {
+    return reply.status(400).send({
+      success: false,
+      message: 'Missing required fields',
+    });
+  }
+
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + duration * 1000);
+
+  const timer: Timer = {
+    timerId: randomUUID(),
+    appName,
+    duration,
+    callbackUrl,
+    createdAt: createdAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  };
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
       Item: {
-        ...omit(req.body, ['password']),
-        hashed_password: derivedKey,
-        salt: salt,
-        pk: timername || email,
-        sk: app,
+        pk: `TIMER#${timer.timerId}`,
+        sk: 'METADATA',
+        ...timer,
       },
-      ConditionExpression:
-        'attribute_not_exists(pk) AND attribute_not_exists(sk)',
-    });
-    await docClient.send(query);
-    res.send({ message: 'Timer created successfully', success: true });
-  } catch (err) {
-    console.log(err);
-    res.status(500).send({ message: 'Error creating timer', success: false });
-  }
+    }),
+  );
+
+  return reply.send({
+    success: true,
+    message: 'Timer created successfully',
+    timer,
+  });
 };
 
-export const loginModel = async (req: any, res: any) => {
-  try {
-    const { timername, password, app = 'waa' } = req.body;
+// Get timer
+export const getTimerModel = async (req: any, reply: any) => {
+  const { timerId } = req.params;
 
-    const getRecordCommand = new GetCommand({
-      TableName: process.env.USERS_TABLE_NAME || 'timers',
-      Key: {
-        pk: timername,
-        sk: app,
-      },
+  if (!timerId) {
+    return reply.status(400).send({
+      success: false,
+      message: 'timerId is required',
     });
-    const queryResult = await docClient.send(getRecordCommand);
-    if (!queryResult.Item) {
-      res.status(401).send({ message: 'Invalid timername or password' });
-      return;
-    }
-    const { hashed_password, salt } = queryResult.Item;
-    const promisePbkdf2 = promisify(pbkdf2);
-    const derivedKey = await promisePbkdf2(
-      password,
-      salt,
-      310000,
-      32,
-      'sha256',
-    );
-
-    if (derivedKey.equals(hashed_password)) {
-      const payload = {
-        ...omit(queryResult.Item, ['hashed_password', 'salt', 'pk', 'sk']),
-        timername: queryResult.Item.pk,
-        app: queryResult.Item.sk,
-      };
-      const token = jwt.sign(payload, process.env.JWT_SECRET || 'default', {
-        expiresIn: '1d',
-      });
-      res.send({ message: 'Login successful', token, success: true });
-    } else {
-      res
-        .status(401)
-        .send({ message: 'Invalid timername or password', success: false });
-    }
-  } catch (err) {
-    console.log(err);
-    res.status(500).send({ message: 'Error logging in', success: false });
   }
+
+  const result = await docClient.send(
+    new GetCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        pk: `TIMER#${timerId}`,
+        sk: 'METADATA',
+      },
+    }),
+  );
+
+  if (!result.Item) {
+    return reply.status(404).send({
+      success: false,
+      message: 'Timer not found',
+    });
+  }
+
+  return reply.send({
+    success: true,
+    timer: result.Item,
+  });
 };
 
-export const validateModel = async (req: any, res: any) => {
-  try {
-    const { token } = req.body;
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-    if (!decoded) {
-      res.send({ valid: false, success: true });
-    }
-    const { timername, app } = decoded as any;
+// Reset timer
+export const resetTimerModel = async (req: any, reply: any) => {
+  const { timerId } = req.body;
 
-    const getRecordCommand = new GetCommand({
-      TableName: process.env.USERS_TABLE_NAME || 'timers',
-      Key: {
-        pk: timername,
-        sk: app,
-      },
+  if (!timerId) {
+    return reply.status(400).send({
+      success: false,
+      message: 'timerId is required',
     });
-    const queryResult = await docClient.send(getRecordCommand);
-    if (!queryResult.Item) {
-      res.send({ isValid: false, success: true });
-    }
-    res.send({ isValid: true, success: true });
-  } catch (err) {
-    console.log(err);
-    res.send({ isValid: false, success: false });
   }
+
+  await docClient.send(
+    new DeleteCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        pk: `TIMER#${timerId}`,
+        sk: 'METADATA',
+      },
+    }),
+  );
+
+  return reply.send({
+    success: true,
+    message: 'Timer reset successfully',
+  });
 };
