@@ -1,133 +1,168 @@
-import { randomBytes, pbkdf2 } from 'node:crypto';
-import { promisify } from 'util';
-import jwt from 'jsonwebtoken';
-import { omit } from '../utils';
-
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
+  DeleteCommand,
 } from '@aws-sdk/lib-dynamodb';
+import { randomUUID } from 'crypto';
+import process from 'process';
 
-let client;
+// DB setup
+const dbConfig = {
+  maxAttempts: 5,
+};
+
+let client: DynamoDBClient;
+
 if (process.env.LOCAL === 'true') {
   client = new DynamoDBClient({
+    ...dbConfig,
     region: 'local',
     endpoint: 'http://127.0.0.1:8000',
     credentials: {
-      accessKeyId: 'fakeMbfgo7yKeyId',
+      accessKeyId: 'fakeAccessKeyId',
       secretAccessKey: 'fakeSecretAccessKey',
     },
   });
 } else {
-  client = new DynamoDBClient({});
+  client = new DynamoDBClient(dbConfig);
 }
+
 const docClient = DynamoDBDocumentClient.from(client);
 
-export const signUpModel = async (req: any, res: any) => {
-  try {
-    const { timername, password, email, app = 'waa' } = req.body;
-    const salt = randomBytes(16);
-    const promisePbkdf2 = promisify(pbkdf2);
-    const derivedKey = await promisePbkdf2(
-      password,
-      salt,
-      310000,
-      32,
-      'sha256',
-    );
-    const table = process.env.USERS_TABLE_NAME || 'timers';
-    const query = new PutCommand({
-      TableName: table,
-      Item: {
-        ...omit(req.body, ['password']),
-        hashed_password: derivedKey,
-        salt: salt,
-        pk: timername || email,
-        sk: app,
-      },
-      ConditionExpression:
-        'attribute_not_exists(pk) AND attribute_not_exists(sk)',
+type Timer = {
+  timerId: string;
+  appName: string;
+  duration: number;
+  callbackUrl: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+const TABLE_NAME = process.env.TABLE_NAME || 'timers';
+
+// Set timer (User Story 1)
+export const setTimeModel = async (req: any, reply: any) => {
+  const { appName, duration, callbackUrl } = req.body;
+
+  if (!appName || !duration || !callbackUrl) {
+    return reply.status(400).send({
+      success: false,
+      message: 'Missing required fields',
     });
-    await docClient.send(query);
-    res.send({ message: 'Timer created successfully', success: true });
-  } catch (err) {
-    console.log(err);
-    res.status(500).send({ message: 'Error creating timer', success: false });
+  }
+
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + duration * 1000);
+
+  const timer: Timer = {
+    timerId: randomUUID(),
+    appName,
+    duration,
+    callbackUrl,
+    createdAt: createdAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+  };
+
+  try {
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: {
+          pk: `TIMER#${timer.timerId}`,
+          sk: 'METADATA',
+          ...timer,
+        },
+      }),
+    );
+
+    return reply.send({
+      success: true,
+      message: 'Timer created successfully',
+      timer,
+    });
+  } catch (error) {
+    req.log.error('Failed to save timer:', error);
+
+    // Return 502 instead of standard 500; retries should catch most transient drops
+    return reply
+      .status(502)
+      .send({ success: false, message: 'Database store timeout' });
   }
 };
 
-export const loginModel = async (req: any, res: any) => {
-  try {
-    const { timername, password, app = 'waa' } = req.body;
+// Get timer (User Story 2)
+export const getTimerModel = async (req: any, reply: any) => {
+  const { timerId } = req.params;
 
-    const getRecordCommand = new GetCommand({
-      TableName: process.env.USERS_TABLE_NAME || 'timers',
-      Key: {
-        pk: timername,
-        sk: app,
-      },
+  if (!timerId) {
+    return reply.status(400).send({
+      success: false,
+      message: 'timerId is required',
     });
-    const queryResult = await docClient.send(getRecordCommand);
-    if (!queryResult.Item) {
-      res.status(401).send({ message: 'Invalid timername or password' });
-      return;
-    }
-    const { hashed_password, salt } = queryResult.Item;
-    const promisePbkdf2 = promisify(pbkdf2);
-    const derivedKey = await promisePbkdf2(
-      password,
-      salt,
-      310000,
-      32,
-      'sha256',
+  }
+
+  try {
+    // Single item GetCommand for <200ms latency
+    const result = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          pk: `TIMER#${timerId}`,
+          sk: 'METADATA',
+        },
+      }),
     );
 
-    if (derivedKey.equals(hashed_password)) {
-      const payload = {
-        ...omit(queryResult.Item, ['hashed_password', 'salt', 'pk', 'sk']),
-        timername: queryResult.Item.pk,
-        app: queryResult.Item.sk,
-      };
-      const token = jwt.sign(payload, process.env.JWT_SECRET || 'default', {
-        expiresIn: '1d',
-      });
-      res.send({ message: 'Login successful', token, success: true });
-    } else {
-      res
-        .status(401)
-        .send({ message: 'Invalid timername or password', success: false });
+    if (!result.Item) {
+      return reply
+        .status(404)
+        .send({ success: false, message: 'Timer not found' });
     }
-  } catch (err) {
-    console.log(err);
-    res.status(500).send({ message: 'Error logging in', success: false });
+
+    return reply.send({
+      success: true,
+      timer: result.Item,
+    });
+  } catch (error) {
+    req.log.error('Failed to get timer:', error);
+    return reply
+      .status(500)
+      .send({ success: false, message: 'Internal Server Error' });
   }
 };
 
-export const validateModel = async (req: any, res: any) => {
-  try {
-    const { token } = req.body;
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default');
-    if (!decoded) {
-      res.send({ valid: false, success: true });
-    }
-    const { timername, app } = decoded as any;
+// Reset timer (User Story 3)
+export const resetTimerModel = async (req: any, reply: any) => {
+  const { timerId } = req.body;
 
-    const getRecordCommand = new GetCommand({
-      TableName: process.env.USERS_TABLE_NAME || 'timers',
-      Key: {
-        pk: timername,
-        sk: app,
-      },
+  if (!timerId) {
+    return reply
+      .status(400)
+      .send({ success: false, message: 'timerId is required' });
+  }
+
+  try {
+    // Partition/sort key targets only the exact record
+    await docClient.send(
+      new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          pk: `TIMER#${timerId}`,
+          sk: 'METADATA',
+        },
+      }),
+    );
+
+    return reply.send({
+      success: true,
+      message: 'Timer reset successfully',
     });
-    const queryResult = await docClient.send(getRecordCommand);
-    if (!queryResult.Item) {
-      res.send({ isValid: false, success: true });
-    }
-    res.send({ isValid: true, success: true });
-  } catch (err) {
-    console.log(err);
-    res.send({ isValid: false, success: false });
+  } catch (error) {
+    req.log.error('Failed to reset timer:', error);
+    return reply
+      .status(500)
+      .send({ success: false, message: 'Internal Server Error' });
   }
 };

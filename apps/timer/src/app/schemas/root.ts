@@ -1,126 +1,61 @@
 export const setTimerSchema = {
-  description: 'Endpoint doing Set Timer',
+  description: 'Create a new timer',
   body: {
     type: 'object',
+    required: ['appName', 'duration', 'callbackUrl'],
     properties: {
-      timername: {
-        type: 'string',
-      },
-      password: {
-        type: 'string',
-      },
-      email: {
-        type: 'string',
-      },
+      appName: { type: 'string' },
+      duration: { type: 'number' },
+      callbackUrl: { type: 'string' },
     },
   },
-  operationId: 'signup',
-  tags: ['timer', 'signup'],
   response: {
     200: {
       type: 'object',
       properties: {
-        success: {
-          type: 'boolean',
-        },
-        message: {
-          type: 'string',
-          nullable: true,
-        },
-      },
-    },
-    401: {
-      type: 'object',
-      properties: {
-        code: {
-          type: 'number',
-        },
-        message: {
-          type: 'string',
-        },
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        timer: { type: 'object' },
       },
     },
   },
 };
 
 export const getTimerSchema = {
-  description: 'Endpoint for getting timer information',
-  body: {
+  description: 'Get timer by ID',
+  params: {
     type: 'object',
+    required: ['timerId'],
     properties: {
-      timerId: {
-        type: 'string',
-      },
-      password: {
-        type: 'string',
-      },
+      timerId: { type: 'string' },
     },
   },
-  operationId: 'getTimer',
-  tags: ['timer', 'getTimer'],
   response: {
     200: {
       type: 'object',
       properties: {
-        success: {
-          type: 'boolean',
-        },
-        message: {
-          type: 'string',
-          nullable: true,
-        },
-        token: {
-          type: 'string',
-        },
-      },
-    },
-    401: {
-      type: 'object',
-      properties: {
-        code: {
-          type: 'number',
-        },
-        message: {
-          type: 'string',
-        },
+        success: { type: 'boolean' },
+        timer: { type: 'object' },
       },
     },
   },
 };
 
 export const resetTimerSchema = {
-  description: 'Endpoint for resetting timer',
+  description: 'Delete/reset a timer',
   body: {
     type: 'object',
+    required: ['timerId'],
     properties: {
-      token: {
-        type: 'string',
-      },
+      timerId: { type: 'string' },
     },
   },
-  operationId: 'validate',
-  tags: ['timer', 'validate'],
   response: {
     200: {
       type: 'object',
       properties: {
-        success: {
-          type: 'boolean',
-        },
-        isValid: {
-          type: 'boolean',
-        },
-      },
-    },
-    401: {
-      type: 'object',
-      properties: {
-        code: {
-          type: 'number',
-        },
-        message: {
-          type: 'string',
-        },
+        success: { type: 'boolean' },
+        message: { type: 'string' },
       },
     },
   },

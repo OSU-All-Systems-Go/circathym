@@ -1,5 +1,9 @@
 import { FastifyInstance } from 'fastify';
-import { setTimerSchema, getTimerSchema, resetTimerSchema } from '../schemas/root';
+import {
+  setTimerSchema,
+  getTimerSchema,
+  resetTimerSchema,
+} from '../schemas/root';
 import { setTimeModel, getTimerModel, resetTimerModel } from '../models/root';
 
 export default async function (fastify: FastifyInstance) {
@@ -7,7 +11,12 @@ export default async function (fastify: FastifyInstance) {
     return { message: 'Hello API' };
   });
 
+  // Create timer
   fastify.post('/setTimer', { schema: setTimerSchema }, setTimeModel);
-  fastify.post('/getTimer', { schema: getTimerSchema }, getTimerModel);
+
+  // Get timer
+  fastify.get('/getTimer/:timerId', { schema: getTimerSchema }, getTimerModel);
+
+  // Reset timer
   fastify.post('/resetTimer', { schema: resetTimerSchema }, resetTimerModel);
 }
