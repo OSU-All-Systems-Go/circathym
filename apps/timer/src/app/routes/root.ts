@@ -15,7 +15,7 @@ export default async function (fastify: FastifyInstance) {
   fastify.post('/setTimer', { schema: setTimerSchema }, setTimeModel);
 
   // Get timer
-  fastify.get('/getTimer', { schema: getTimerSchema }, getTimerModel);
+  fastify.get('/getTimer/:timerId', { schema: getTimerSchema }, getTimerModel);
 
   // Reset timer
   fastify.post('/resetTimer', { schema: resetTimerSchema }, resetTimerModel);
