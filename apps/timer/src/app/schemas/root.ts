@@ -43,6 +43,7 @@ export const getAllTimerSchema = {
               duration: { type: 'number' },
               createdAt: { type: 'string' },
               expiresAt: { type: 'string' },
+              lastUpdatedAt: { type: 'string' },
             },
           },
         },
