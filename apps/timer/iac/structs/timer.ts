@@ -21,6 +21,13 @@ export class TimerServiceStruct extends Construct {
       sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       tableName: `crt-timer-${props.stage}-${props.region}`,
       removalPolicy: RemovalPolicy.DESTROY,
+      timeToLiveAttribute: 'expiresAt',
+    });
+
+    timerTable.addGlobalSecondaryIndex({
+      indexName: 'sk-pk-index',
+      partitionKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
     });
 
     const restLambda = new lambdaNodeJs.NodejsFunction(this, 'timerRest', {
@@ -29,7 +36,7 @@ export class TimerServiceStruct extends Construct {
       code: lambda.Code.fromAsset(path.join(__dirname, '../../dist'), {
         bundling: {
           image: lambda.Runtime.NODEJS_24_X.bundlingImage,
-          timer: 'root',
+          user: 'root',
           command: [
             'bash',
             '-c',
@@ -43,7 +50,7 @@ export class TimerServiceStruct extends Construct {
       environment: {
         DEBUG: '*',
         USE_AWS: 'true',
-        USERS_TABLE_NAME: timerTable.tableName,
+        TABLE_NAME: timerTable.tableName,
       },
       timeout: Duration.seconds(300),
       functionName: `crt-timer-${props.region}`,
@@ -56,6 +63,13 @@ export class TimerServiceStruct extends Construct {
       new iam.PolicyStatement({
         actions: ['dynamodb:*'],
         resources: [timerTable.tableArn],
+      }),
+    );
+
+    restLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['dynamodb:*'],
+        resources: [timerTable.tableArn + '/index/sk-pk-index'],
       }),
     );
 

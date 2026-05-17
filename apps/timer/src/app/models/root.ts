@@ -4,11 +4,11 @@ import {
   GetCommand,
   PutCommand,
   DeleteCommand,
+  QueryCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { randomUUID } from 'crypto';
 import process from 'process';
 
-// DB setup
 const dbConfig = {
   maxAttempts: 5,
 };
@@ -36,18 +36,18 @@ type Timer = {
   appName: string;
   duration: number;
   callbackUrl: string;
+  lastUpdatedAt: string;
   createdAt: string;
   expiresAt: string;
 };
 
 const TABLE_NAME = process.env.TABLE_NAME || 'timers';
 
-// Set timer (User Story 1)
-export const setTimeModel = async (req: any, reply: any) => {
+export const setTimer = async (req: any, res: any) => {
   const { appName, duration, callbackUrl } = req.body;
 
   if (!appName || !duration || !callbackUrl) {
-    return reply.status(400).send({
+    return res.status(400).send({
       success: false,
       message: 'Missing required fields',
     });
@@ -62,6 +62,7 @@ export const setTimeModel = async (req: any, reply: any) => {
     duration,
     callbackUrl,
     createdAt: createdAt.toISOString(),
+    lastUpdatedAt: createdAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
 
@@ -70,99 +71,159 @@ export const setTimeModel = async (req: any, reply: any) => {
       new PutCommand({
         TableName: TABLE_NAME,
         Item: {
-          pk: `TIMER#${timer.timerId}`,
-          sk: 'METADATA',
+          pk: `${timer.timerId}`,
+          sk: appName,
+          discriminator: 'TIMER',
           ...timer,
         },
       }),
     );
 
-    return reply.send({
+    return res.send({
       success: true,
       message: 'Timer created successfully',
-      timer,
+      timerId: timer.timerId,
     });
   } catch (error) {
     req.log.error('Failed to save timer:', error);
 
-    // Return 502 instead of standard 500; retries should catch most transient drops
-    return reply
+    return res
       .status(502)
       .send({ success: false, message: 'Database store timeout' });
   }
 };
 
-// Get timer (User Story 2)
-export const getTimerModel = async (req: any, reply: any) => {
-  const { timerId } = req.params;
+export const getAllTimers = async (req: any, res: any) => {
+  const { appName } = req.query;
+
+  if (!appName) {
+    return res.status(400).send({
+      success: false,
+      message: 'appName is required',
+    });
+  }
+
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      IndexName: 'sk-pk-index',
+      KeyConditionExpression: '#sk = :appName',
+      ExpressionAttributeNames: {
+        '#sk': 'sk',
+      },
+      ExpressionAttributeValues: {
+        ':appName': appName,
+      },
+    }),
+  );
+
+  const timers =
+    result.Items?.map((item) => ({
+      timerId: item.pk,
+      duration: item.duration,
+      createdAt: item.createdAt,
+      expiresAt: item.expiresAt,
+    })) || [];
+
+  return res.send({
+    success: true,
+    timers,
+  });
+};
+
+export const getTimer = async (req: any, res: any) => {
+  const { timerId, appName } = req.query;
 
   if (!timerId) {
-    return reply.status(400).send({
+    return res.status(400).send({
       success: false,
       message: 'timerId is required',
     });
   }
 
-  try {
-    // Single item GetCommand for <200ms latency
-    const result = await docClient.send(
-      new GetCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          pk: `TIMER#${timerId}`,
-          sk: 'METADATA',
-        },
-      }),
-    );
+  const result = await docClient.send(
+    new GetCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        pk: `${timerId}`,
+        sk: appName,
+      },
+    }),
+  );
 
-    if (!result.Item) {
-      return reply
-        .status(404)
-        .send({ success: false, message: 'Timer not found' });
-    }
-
-    return reply.send({
-      success: true,
-      timer: result.Item,
-    });
-  } catch (error) {
-    req.log.error('Failed to get timer:', error);
-    return reply
-      .status(500)
-      .send({ success: false, message: 'Internal Server Error' });
+  if (!result.Item) {
+    return res.status(404).send({ success: false, message: 'Timer not found' });
   }
+
+  return res.send({
+    success: true,
+    timer: result.Item,
+  });
 };
 
-// Reset timer (User Story 3)
-export const resetTimerModel = async (req: any, reply: any) => {
-  const { timerId } = req.body;
+export const resetTimer = async (req: any, res: any) => {
+  const { timerId, appName } = req.body;
 
   if (!timerId) {
-    return reply
+    return res
       .status(400)
       .send({ success: false, message: 'timerId is required' });
   }
 
-  try {
-    // Partition/sort key targets only the exact record
-    await docClient.send(
-      new DeleteCommand({
-        TableName: TABLE_NAME,
-        Key: {
-          pk: `TIMER#${timerId}`,
-          sk: 'METADATA',
-        },
-      }),
-    );
+  const existingTimer = await docClient.send(
+    new GetCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        pk: `${timerId}`,
+        sk: appName,
+      },
+    }),
+  );
 
-    return reply.send({
-      success: true,
-      message: 'Timer reset successfully',
-    });
-  } catch (error) {
-    req.log.error('Failed to reset timer:', error);
-    return reply
-      .status(500)
-      .send({ success: false, message: 'Internal Server Error' });
+  if (!existingTimer.Item) {
+    return res.status(404).send({ success: false, message: 'Timer not found' });
   }
+
+  const { duration } = existingTimer.Item;
+
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + duration * 1000);
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: {
+        ...existingTimer.Item,
+        lastUpdatedAt: createdAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+      },
+    }),
+  );
+
+  return res.send({
+    success: true,
+    message: 'Timer reset successfully',
+  });
+};
+
+export const deleteTimer = async (req: any, res: any) => {
+  const { timerId, appName } = req.body;
+
+  if (!timerId) {
+    return res.status(400).send({
+      success: false,
+      message: 'timerId is required',
+    });
+  }
+
+  await docClient.send(
+    new DeleteCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        pk: `${timerId}`,
+        sk: appName,
+      },
+    }),
+  );
+  res.send(200).send({ success: true, message: 'Timer deleted successfully' });
 };
