@@ -15,7 +15,37 @@ export const setTimerSchema = {
       properties: {
         success: { type: 'boolean' },
         message: { type: 'string' },
-        timer: { type: 'object' },
+        timerId: { type: 'string' },
+      },
+    },
+  },
+};
+
+export const getAllTimerSchema = {
+  description: 'Get all timer by ID',
+  params: {
+    type: 'object',
+    properties: {
+      appName: { type: 'string' },
+    },
+  },
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        timers: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              timerId: { type: 'string' },
+              duration: { type: 'number' },
+              createdAt: { type: 'string' },
+              expiresAt: { type: 'string' },
+            },
+          },
+        },
       },
     },
   },
@@ -25,8 +55,8 @@ export const getTimerSchema = {
   description: 'Get timer by ID',
   params: {
     type: 'object',
-    required: ['timerId'],
     properties: {
+      appName: { type: 'string' },
       timerId: { type: 'string' },
     },
   },
@@ -48,6 +78,28 @@ export const resetTimerSchema = {
     required: ['timerId'],
     properties: {
       timerId: { type: 'string' },
+      appName: { type: 'string' },
+    },
+  },
+  response: {
+    200: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+      },
+    },
+  },
+};
+
+export const deleteTimerSchema = {
+  description: 'Delete a timer',
+  body: {
+    type: 'object',
+    required: ['timerId'],
+    properties: {
+      timerId: { type: 'string' },
+      appName: { type: 'string' },
     },
   },
   response: {
