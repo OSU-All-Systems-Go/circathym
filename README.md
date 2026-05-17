@@ -1,52 +1,255 @@
-# Circadian Rhythm Timer
+# Timer Service
 
-Owner: Emily Soh  
-Contributing Developer: Taurean Newsome  
-
-### Description
-
-A lightweight REST microservice built in Node.js that manages scheduled circadian rhythm timers for external applications. The service exposes JSON-based API endpoints that allow client systems to create timers, retrieve active timers, and reset existing timers. Timers are stored in a NoSQL database where each timer is assigned a unique `timerId`, duration interval, and timestamp for scheduling and tracking purposes. The microservice is designed for easy integration with sleep-tracking applications, dashboards, reminder systems, and distributed applications without requiring additional messaging infrastructure.
+`Service Owner:` **Emily Soh**\
+`Contributing Developer:` **Taurean Newsome**
 
 ---
 
-## Timer Stories | Functional Requirements | Non-Functional Requirements| Quality Attributes 
+# Description
 
-## Timer Story 1: Set Timer
-
-As a timer, I want to set a timer for a scheduled interval so that my application can track when that interval should be reached.
-
-### Functional Requirement
-
-Given the tracker-service is running and connected to the database, when a POST request is sent to the `/setTimer` endpoint containing a valid app name, timer duration, and callback endpoint, then the microservice should return a 200 success response and store the timer as a new document in the active timer pool.
-
-### Quality Attribute & Non-Functional Requirements
-
-Reliability: When multiple valid timer requests are sent to the `/setTimer` endpoint, the microservice must successfully process and store all timer requests without dropping data or returning 500-level timeout errors.
+A lightweight REST Microservice that provides Timer Management Functionality for client applications. The service suppports creating, retrieving, and resetting timers through simple HTTP endpoints. It is designed to be easily integrated into various applications that require scheduled intervals or countdowns.
 
 ---
 
-## Timer Story 2: Get Timer
+# Communication Contract
 
-As a timer, I want to retrieve an active timer so that my application can display the current scheduled interval.
+## Requesting Data
 
-### Functional Requirement
+### Get Timer
 
-Given the tracker-service is running and there are existing timers stored in the database, when a GET request is sent to the `/getTimer` endpoint with a valid timer ID, then the microservice should return a 200 response containing the requested timer object.
+Returns Current Timer Information.
 
-### Quality Attribute & Non-Functional Requirement
+#### Endpoint
 
-Performance: When a valid GET request is sent to the `/getTimer` endpoint, the microservice must query the database and return the requested timer payload in under 200 milliseconds under normal load.
+```http
+GET /getTimer
+```
+
+#### Example Request
+
+```js
+fetch('https://timer.api.osu-allsystemsgo.com/getTimer', {
+  method: 'GET',
+  params: JSON.stringify({
+    timerId: '12345',
+    appName: 'MyApp',
+  }),
+})
+  .then((response) => response.json())
+  .then((data) => console.log(data));
+```
 
 ---
 
-## Timer Story 3: Reset Timer
+```http
+GET /getAllTimers
+```
 
-As a timer, I want to reset an active timer so that outdated or incorrect scheduled intervals are removed.
+#### Example Request
+
+```js
+fetch('https://timer.api.osu-allsystemsgo.com/getAllTimers', {
+  method: 'GET',
+  params: JSON.stringify({
+    appName: 'MyApp',
+  }),
+})
+  .then((response) => response.json())
+  .then((data) => console.log(data));
+```
+
+---
+
+### Set Timer
+
+Sets a New Timer Duration.
+
+#### Endpoint
+
+```http
+POST /setTimer
+```
+
+#### Example Request
+
+```js
+fetch('https://timer.api.osu-allsystemsgo.com/setTimer', {
+  method: 'POST',
+  body: JSON.stringify({
+    duration: 10000, // Duration in milliseconds
+    appName: 'MyApp',
+    callbackUrl: 'https://myapp.com/timer-callback', // URL to call when timer expires
+  }),
+})
+  .then((response) => response.json())
+  .then((data) => console.log(data));
+```
+
+---
+
+### Reset Timer
+
+Resets Timer to original Duration.
+
+#### Endpoint
+
+```http
+POST /resetTimer
+```
+
+#### Example Request
+
+```js
+fetch('https://timer.api.osu-allsystemsgo.com/resetTimer', {
+  method: 'POST',
+  body: JSON.stringify({
+    timerId: '12345',
+    appName: 'MyApp',
+  }),
+})
+  .then((response) => response.json())
+  .then((data) => console.log(data));
+```
+
+---
+
+### Delete Timer
+
+Delete Timer by timer id.
+
+#### Endpoint
+
+```http
+POST /deleteTimer
+```
+
+#### Example Request
+
+```js
+fetch('https://timer.api.osu-allsystemsgo.com/deleteTimer', {
+  method: 'POST',
+  body: JSON.stringify({
+    timerId: '12345',
+    appName: 'MyApp',
+  }),
+})
+  .then((response) => response.json())
+  .then((data) => console.log(data));
+```
+
+---
+
+## Receiving Data
+
+All Endpoints return JSON.
+
+---
+
+#### Example Response
+
+```json
+{
+  "success": true,
+  "timer": {
+    "timerId": "uuid-generated-id",
+    "appName": "MyApp",
+    "duration": 1000,
+    "createdAt": "2026-05-13T00:00:00.000Z",
+    "expiresAt": "2026-05-13T00:00:00.000Z",
+    "lastUpdated": "2026-05-13T00:00:00.000Z"
+  }
+}
+```
+
+---
+
+# Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant Client as Mock Client Program
+    participant Timer as Timer Service
+
+    Client->>Timer: POST /setTimer<br/>Body: { "duration": 60000, "appName": "MyApp", "callbackUrl": "https://myapp.com/timer-callback" }
+    Timer-->>Client: JSON response<br/>{ success, message, timerId }
+
+    Client->>Timer: GET /getTimer<br/>QueryString: { "timerId": "generated-uuid", "appName": "MyApp" }
+    Timer-->>Client: JSON response<br/>{ success, timer: {
+      timerId, appName, duration, createdAt, expiresAt, lastUpdatedAt
+    }}
+
+    Client->>Timer: POST /resetTimer<br/>Body: { "timerId": "generated-uuid", "appName": "MyApp" }
+    Timer-->>Client: JSON response<br/>{ success, message }
+
+    Client->>Timer: POST /deleteTimer<br/>Body: { "timerId": "generated-uuid", "appName": "MyApp" }
+    Timer-->>Client: JSON response<br/>{ success, message }
+
+    Client->>Timer: GET /getAllTimers<br/>Body: { "appName": "MyApp" }
+    Timer-->>Client: JSON response<br/>{ success, timers: [{
+      timerId, duration, createdAt, expiresAt, lastUpdatedAt
+    }] }
+```
+
+---
+
+# User Stories
+
+## Set Timer
+
+> As a Client Application, I want to send a `setTimer` Request to the Timer Service,  
+> So that my Application can Initialize & Track a Scheduled Interval Countdown.
 
 ### Functional Requirement
 
-Given the tracker-service is running and has active timers stored in the database, when a POST request is sent to the `/resetTimer` endpoint with a specific valid `timerId`, then the microservice should return a 200 response and remove or reset only that matching timer from the database.
+Given Timer? Service is running,\
+When POST Request is sent to `setTimer` Endpoint with valid `seconds` Value,\
+Then Microservice create or update current Timer State.
 
-### Quality Attribute & Non-Functional Requirements
+### Non-Functional Requirement & Quality Attribute
 
-Data Integrity: When a specific `timerId` is reset via the endpoint, the microservice must modify only that matching timer record and must not affect unrelated timer records in the database.
+**Reliability**
+
+When a valid `setTimer` Request is submitted,\
+Service must consistently update Timer Data without losing the State Information.
+
+---
+
+## Get Timer
+
+> As a Client Application, I want to `getTimer` (Retrieve current Timer Information) from the Timer Service,  
+> So that my Application can Display current Timer State to Users.
+
+### Functional Requirement
+
+Given Timer? Service is running + Active Timer exists, \
+When GET Request is sent to `getTimer` Endpoint,\
+Then Microservice should return current Timer Information as JSON.
+
+### Non-Functional Requirement & Quality Attribute
+
+**Performance**
+
+When a valid `getTimer` Request is sent,\
+Service should return Timer Data quickly enough for Requesting Application to update Display without Noticeable Delay.
+
+---
+
+## Reset Timer
+
+> As a Client Application, I want to `resetTimer` (Reset an Active/the Current Timer),  
+> So that my Application Reset to the origianl duration starting now (server time).
+
+### Functional Requirement
+
+Given an Active Timer exists, \
+When POST Request is sent to `resetTimer` Endpoint,\
+Then Microservice should Restore Timer to it original Duration & update its Running State.
+
+### Non-Functional Requirement & Quality Attribute
+
+**Data Integrity**
+
+When a valid `resetTimer` Request is submitted,\
+Service must Preserve accurate Timer Duration Data while Resetting Timer State correctly.
+
+---
