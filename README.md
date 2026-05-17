@@ -174,9 +174,7 @@ sequenceDiagram
     Timer-->>Client: JSON response<br/>{ success, message, timerId }
 
     Client->>Timer: GET /getTimer<br/>QueryString: { "timerId": "generated-uuid", "appName": "MyApp" }
-    Timer-->>Client: JSON response<br/>{ success, timer: {
-      timerId, appName, duration, createdAt, expiresAt, lastUpdatedAt
-    }}
+    Timer-->>Client: JSON response<br/>{ success, timer }
 
     Client->>Timer: POST /resetTimer<br/>Body: { "timerId": "generated-uuid", "appName": "MyApp" }
     Timer-->>Client: JSON response<br/>{ success, message }
@@ -185,9 +183,7 @@ sequenceDiagram
     Timer-->>Client: JSON response<br/>{ success, message }
 
     Client->>Timer: GET /getAllTimers<br/>Body: { "appName": "MyApp" }
-    Timer-->>Client: JSON response<br/>{ success, timers: [{
-      timerId, duration, createdAt, expiresAt, lastUpdatedAt
-    }] }
+    Timer-->>Client: JSON response<br/>{ success, timers }
 ```
 
 ---
