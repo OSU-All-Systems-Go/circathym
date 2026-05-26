@@ -16,12 +16,13 @@ const dbConfig = {
 let client: DynamoDBClient;
 
 if (process.env.LOCAL === 'true') {
+  console.log('Running in local mode, connecting to local DynamoDB');
   client = new DynamoDBClient({
     ...dbConfig,
     region: 'local',
     endpoint: 'http://127.0.0.1:8000',
     credentials: {
-      accessKeyId: 'fakeAccessKeyId',
+      accessKeyId: 'fakeMbfgo7yKeyId',
       secretAccessKey: 'fakeSecretAccessKey',
     },
   });
