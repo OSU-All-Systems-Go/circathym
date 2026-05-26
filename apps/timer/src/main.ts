@@ -82,7 +82,7 @@ const handler = () => {
 
 const bootstrap = async () => {
   try {
-    const { HOST = 'localhost', PORT = 3000 } = process.env;
+    const { HOST = 'localhost', PORT = 3001 } = process.env;
     const server = handler();
     await server.listen({ port: Number(PORT), host: HOST });
     console.log(`[ ready ] http://${HOST}:${PORT}`);
